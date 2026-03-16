@@ -1,0 +1,9 @@
+node_modules/
+temp/
+*.log
+*.aux
+*.dvi
+*.pdf
+*.toc
+*.out
+*.gz

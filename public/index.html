@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LaTeX 線上編輯器</title>
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- CodeMirror for a better editing experience -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/dracula.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/stex/stex.min.js"></script>
+    
+    <!-- PDF.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf_viewer.min.css">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <h1>LaTeX 編輯器</h1>
+            <span class="badge">支援中文、TikZ、數學公式</span>
+        </div>
+        <div class="header-right">
+            <input type="file" id="fileInput" accept=".tex" class="hidden">
+            <button id="openBtn" class="secondary-btn">開啟檔案</button>
+            <button id="saveBtn" class="secondary-btn">儲存檔案</button>
+            <button id="compileBtn" class="primary-btn">
+                <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                編譯 PDF (Ctrl+Enter)
+            </button>
+        </div>
+    </header>
+    
+    <main class="container">
+        <!-- 左側編輯區 -->
+        <div class="editor-pane pane">
+            <div class="pane-header">
+                <h3>原始碼</h3>
+                <span class="hint">可直接「Ctrl+V貼上圖片」</span>
+            </div>
+            <!-- CodeMirror 會掛載在這裡 -->
+            <textarea id="editor"></textarea>
+            
+            <!-- 載入中遮罩 -->
+            <div id="loadingOverlay" class="hidden">
+                <div class="spinner"></div>
+                <p>正在編譯中...</p>
+            </div>
+        </div>
+        
+        <!-- 右側預覽區 -->
+        <div class="preview-pane pane">
+            <div class="pane-header">
+                <h3>預覽 (PDF)</h3>
+                <span class="hint">點擊文字可反向搜尋原始碼</span>
+            </div>
+            <div class="preview-container" id="pdfViewerContainer" style="overflow: auto; position: relative;">
+                <div id="pdfViewer" class="pdfViewer"></div>
+                <div id="logContainer" class="log-container hidden">
+                    <h3 class="error-title">編譯失敗或發生錯誤：</h3>
+                    <pre id="logOutput"></pre>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 圖片設定彈窗 -->
+    <div id="imageModal" class="modal hidden">
+        <div class="modal-content">
+            <h3>圖片插入設定</h3>
+            <div class="form-group">
+                <label>排版方式</label>
+                <select id="imgAlign">
+                    <option value="center">置中 (center)</option>
+                    <option value="wrap-left">文繞圖靠左 (wrap left)</option>
+                    <option value="wrap-right">文繞圖靠右 (wrap right)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>圖片大小比例 (通常 0.1 ~ 1.0)</label>
+                <input type="number" id="imgWidth" value="0.8" step="0.1" min="0.1" max="1.0">
+            </div>
+            <div class="modal-actions">
+                <button id="imgCancelBtn" class="cancel-btn">取消</button>
+                <button id="imgConfirmBtn" class="primary-btn">確認插入</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
