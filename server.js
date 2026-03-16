@@ -8,6 +8,19 @@ const { spawn, exec } = require('child_process');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Resolve xelatex path: prefer system PATH, fallback to MiKTeX default install location
+const { execSync } = require('child_process');
+let XELATEX = 'xelatex';
+try {
+    execSync('xelatex --version', { stdio: 'ignore' });
+} catch {
+    const fallback = 'C:\\Users\\' + require('os').userInfo().username +
+        '\\AppData\\Local\\Programs\\MiKTeX\\miktex\\bin\\x64\\xelatex.exe';
+    if (fs.existsSync(fallback)) {
+        XELATEX = fallback;
+    }
+}
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -57,7 +70,7 @@ app.post('/compile', (req, res) => {
     fs.writeFileSync(texFilePath, code, 'utf8');
 
     // Compile using xelatex for better support of Chinese (ctexart) and modern fonts
-    const texProcess = spawn('xelatex', ['-synctex=1', '-interaction=nonstopmode', '-halt-on-error', 'main.tex'], {
+    const texProcess = spawn(XELATEX, ['-synctex=1', '-interaction=nonstopmode', 'main.tex'], {
         cwd: tempDir
     });
 
@@ -72,12 +85,16 @@ app.post('/compile', (req, res) => {
         stderrData += data.toString();
     });
 
+    texProcess.on('error', (err) => {
+        res.json({ success: false, log: `無法執行 xelatex：${err.message}\n請確認 MiKTeX 已正確安裝。` });
+    });
+
     texProcess.on('close', (code) => {
-        if (code === 0 && fs.existsSync(pdfFilePath)) {
-            // Compilation successful
-            res.json({ 
-                success: true, 
-                pdfUrl: `/pdf?t=${Date.now()}` 
+        if (fs.existsSync(pdfFilePath)) {
+            // PDF was generated (even if there were warnings)
+            res.json({
+                success: true,
+                pdfUrl: `/pdf?t=${Date.now()}`
             });
         } else {
             // Compilation failed, try to read the log file
@@ -119,7 +136,11 @@ app.get('/synctex', (req, res) => {
         return res.status(404).json({ error: 'PDF not found' });
     }
 
-    const command = `synctex edit -o "${page}:${x}:${y}:${pdfFilePath}"`;
+    // Resolve synctex path similar to xelatex
+    const synctexBin = XELATEX.includes('MiKTeX')
+        ? XELATEX.replace('xelatex.exe', 'synctex.exe')
+        : 'synctex';
+    const command = `"${synctexBin}" edit -o "${page}:${x}:${y}:${pdfFilePath}"`;
 
     exec(command, { cwd: tempDir, encoding: 'utf8' }, (error, stdout, stderr) => {
         if (error) {

@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /d/Git/EzLatex -type f \\\\\\( -name \"*.js\" -o -name \"*.html\" -o -name \"*.css\" \\\\\\) ! -path \"*/node_modules/*\" ! -path \"*/.git/*\" -exec wc -l {} +)",
+      "Bash(du -sh /d/Git/EzLatex/*)",
+      "Bash(winget list:*)",
+      "Bash(winget install:*)",
+      "Bash(export PATH=\"/c/Users/chroh/AppData/Local/Programs/MiKTeX/miktex/bin/x64:$PATH\")",
+      "Bash(xelatex --version)",
+      "Bash(npm install:*)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(where xelatex:*)",
+      "Read(//c/Users/chroh/AppData/Local/Programs/MiKTeX/**)",
+      "Bash(\"/c/Users/chroh/AppData/Local/Programs/MiKTeX/miktex/bin/x64/mpm.exe\" --install=wrapfig --install=fandol --install=ctex --install=amsmath --install=tools)",
+      "Bash(\"/c/Users/chroh/AppData/Local/Programs/MiKTeX/miktex/bin/x64/miktex.exe\" packages:*)",
+      "Bash(for pkg:*)",
+      "Bash(do \"/c/Users/chroh/AppData/Local/Programs/MiKTeX/miktex/bin/x64/miktex.exe\" packages install \"$pkg\")",
+      "Bash(grep -v \"^$\" done)",
+      "Bash(MIKTEX=\"/c/Users/chroh/AppData/Local/Programs/MiKTeX/miktex/bin/x64/miktex.exe\")",
+      "Bash(do)",
+      "Bash(\"$MIKTEX\" packages:*)",
+      "Bash(done)",
+      "Bash(xelatex -interaction=nonstopmode -halt-on-error test.tex)",
+      "Bash(\"/c/Users/chroh/AppData/Local/Programs/MiKTeX/miktex/bin/x64/miktex.exe\" configuration:*)",
+      "Bash(\"/c/Users/chroh/AppData/Local/Programs/MiKTeX/miktex/bin/x64/initexmf.exe\" --set-config-value=[MPM]AutoInstall=1)",
+      "Bash(xelatex -interaction=nonstopmode test.tex)"
+    ]
+  }
+}

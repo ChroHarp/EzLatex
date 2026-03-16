@@ -1,10 +1,14 @@
 document.addEventListener('DOMContentLoaded', () => {
     // 預設的 LaTeX 模板
-    const defaultCode = `\\documentclass[12pt, a4paper]{ctexart}
+    const defaultCode = `\\documentclass[12pt, a4paper, fontset=none]{ctexart}
 \\usepackage{amsmath, amssymb}
 \\usepackage{tikz}
 \\usepackage{graphicx}
 \\usepackage{wrapfig} % 支援文繞圖
+% 使用系統內建字型（Windows）
+\\setCJKmainfont{Noto Sans TC}
+\\setCJKsansfont{Noto Sans TC}
+\\setCJKmonofont{Noto Sans TC}
 
 \\begin{document}
 
@@ -62,10 +66,59 @@ document.addEventListener('DOMContentLoaded', () => {
     // PDF.js 初始化設定
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     let currentPdfDoc = null;
+    let currentScale = 1.2;
+    let currentPdfUrl = null;
+
+    // PDF 工具列元素
+    const zoomInBtn = document.getElementById('zoomInBtn');
+    const zoomOutBtn = document.getElementById('zoomOutBtn');
+    const zoomLevel = document.getElementById('zoomLevel');
+    const prevPageBtn = document.getElementById('prevPageBtn');
+    const nextPageBtn = document.getElementById('nextPageBtn');
+    const pageIndicator = document.getElementById('pageIndicator');
+    const pdfViewerContainer = document.getElementById('pdfViewerContainer');
+    const savePdfBtn = document.getElementById('savePdfBtn');
+
+    const updateZoomLabel = () => {
+        zoomLevel.textContent = Math.round(currentScale * 100) + '%';
+    };
+
+    // 取得目前可見頁碼
+    const getCurrentVisiblePage = () => {
+        const pages = pdfViewer.querySelectorAll('.page');
+        if (!pages.length) return 0;
+        const containerRect = pdfViewerContainer.getBoundingClientRect();
+        const containerMid = containerRect.top + containerRect.height / 2;
+        let closest = 1;
+        let minDist = Infinity;
+        pages.forEach(p => {
+            const r = p.getBoundingClientRect();
+            const mid = r.top + r.height / 2;
+            const dist = Math.abs(mid - containerMid);
+            if (dist < minDist) {
+                minDist = dist;
+                closest = parseInt(p.getAttribute('data-page-number'), 10);
+            }
+        });
+        return closest;
+    };
+
+    const updatePageIndicator = () => {
+        if (!currentPdfDoc) {
+            pageIndicator.textContent = '0 / 0';
+            return;
+        }
+        const cur = getCurrentVisiblePage();
+        pageIndicator.textContent = `${cur} / ${currentPdfDoc.numPages}`;
+    };
+
+    // 監聽捲動更新頁碼
+    pdfViewerContainer.addEventListener('scroll', updatePageIndicator);
 
     // 渲染 PDF
     const renderPdf = async (url) => {
         try {
+            currentPdfUrl = url;
             pdfViewer.innerHTML = ''; // 清空舊內容
             const loadingTask = pdfjsLib.getDocument(url);
             currentPdfDoc = await loadingTask.promise;
@@ -73,9 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // 依序渲染每一頁
             for (let pageNum = 1; pageNum <= currentPdfDoc.numPages; pageNum++) {
                 const page = await currentPdfDoc.getPage(pageNum);
-                
-                // 設定縮放比例 (預設 1.2 以適合大部分螢幕)
-                const viewport = page.getViewport({ scale: 1.2 });
+                const viewport = page.getViewport({ scale: currentScale });
 
                 // 建立 page container
                 const pageContainer = document.createElement('div');
@@ -102,6 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const textContent = await page.getTextContent();
                 const textLayerDiv = document.createElement('div');
                 textLayerDiv.className = 'textLayer';
+                textLayerDiv.style.setProperty('--scale-factor', currentScale);
                 pageContainer.appendChild(textLayerDiv);
 
                 pdfjsLib.renderTextLayer({
@@ -111,10 +163,65 @@ document.addEventListener('DOMContentLoaded', () => {
                     textDivs: []
                 });
             }
+            updatePageIndicator();
+            updateZoomLabel();
         } catch (error) {
             console.error('PDF 渲染錯誤:', error);
         }
     };
+
+    // 縮放控制
+    zoomInBtn.addEventListener('click', () => {
+        if (currentScale >= 3.0) return;
+        currentScale = Math.round((currentScale + 0.2) * 10) / 10;
+        updateZoomLabel();
+        if (currentPdfUrl) renderPdf(currentPdfUrl);
+    });
+
+    zoomOutBtn.addEventListener('click', () => {
+        if (currentScale <= 0.4) return;
+        currentScale = Math.round((currentScale - 0.2) * 10) / 10;
+        updateZoomLabel();
+        if (currentPdfUrl) renderPdf(currentPdfUrl);
+    });
+
+    // 頁面導覽
+    const scrollToPage = (pageNum) => {
+        const target = pdfViewer.querySelector(`.page[data-page-number="${pageNum}"]`);
+        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    prevPageBtn.addEventListener('click', () => {
+        const cur = getCurrentVisiblePage();
+        if (cur > 1) scrollToPage(cur - 1);
+    });
+
+    nextPageBtn.addEventListener('click', () => {
+        const cur = getCurrentVisiblePage();
+        if (currentPdfDoc && cur < currentPdfDoc.numPages) scrollToPage(cur + 1);
+    });
+
+    // 匯出 PDF 下載
+    savePdfBtn.addEventListener('click', async () => {
+        if (!currentPdfUrl) {
+            alert('請先編譯文件再匯出 PDF');
+            return;
+        }
+        const res = await fetch('/pdf');
+        if (!res.ok) {
+            alert('PDF 尚未產生，請先編譯');
+            return;
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'document.pdf';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    });
 
     // 處理反向搜尋點擊事件
     pdfViewer.addEventListener('mouseup', async (e) => {
@@ -128,13 +235,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const pageNum = parseInt(pageContainer.getAttribute('data-page-number'), 10);
         const rect = pageContainer.getBoundingClientRect();
         
-        // 取得相對於頁面左上角的座標 (Points)
-        // PDF.js 預設 72 PPI，1 Point = 1/72 inch
-        const scale = 1.2; // 上面設定的縮放比例
-        
         // 將 CSS 像素轉換為 PDF 的點座標 (Pt)
-        const xPt = (e.clientX - rect.left) / scale;
-        const yPt = (e.clientY - rect.top) / scale;
+        const xPt = (e.clientX - rect.left) / currentScale;
+        const yPt = (e.clientY - rect.top) / currentScale;
 
         try {
             const res = await fetch(`/synctex?page=${pageNum}&x=${xPt}&y=${yPt}`);
