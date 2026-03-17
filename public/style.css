@@ -410,3 +410,93 @@ h1 {
 .cancel-btn:hover {
     color: var(--text-primary);
 }
+
+/* Missing images modal */
+.modal-desc {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+}
+
+.missing-list {
+    list-style: none;
+    margin-bottom: 1rem;
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.missing-list li {
+    font-family: monospace;
+    font-size: 0.8rem;
+    color: var(--danger);
+    padding: 0.3rem 0.5rem;
+    background-color: rgba(239, 68, 68, 0.1);
+    border-radius: 4px;
+    margin-bottom: 0.25rem;
+}
+
+.missing-list li::before {
+    content: '! ';
+}
+
+/* Help modal */
+.help-modal-content {
+    max-width: 560px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.help-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.help-section h4 {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.help-section ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.help-section li {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.help-section code {
+    font-family: monospace;
+    font-size: 0.8rem;
+    background-color: rgba(255, 255, 255, 0.08);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: #93c5fd;
+}
+
+kbd {
+    display: inline-block;
+    padding: 1px 6px;
+    font-family: monospace;
+    font-size: 0.78rem;
+    background-color: var(--bg-main);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-primary);
+}
+
+#missingImgInput {
+    width: 100%;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+}

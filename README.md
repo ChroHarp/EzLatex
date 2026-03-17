@@ -1,4 +1,4 @@
-# EzLatex
+# EzLaTeX 編輯器
 
 一個輕量級的網頁版 LaTeX 編輯器，支援即時編譯、PDF 預覽、中文排版，以及雙向同步搜尋。
 
@@ -7,10 +7,13 @@
 - **語法高亮編輯器** — 基於 CodeMirror 5，提供 LaTeX 語法著色（Dracula 主題）、括號匹配、自動補全
 - **即時 PDF 預覽** — 使用 XeTeX 編譯，透過 PDF.js 直接在瀏覽器中渲染
 - **反向搜尋（SyncTeX）** — 點擊 PDF 中的文字，自動跳至編輯器對應行
-- **圖片貼上插入** — 直接 Ctrl+V 貼上剪貼簿圖片，自動產生 LaTeX 圖片環境程式碼
-- **中文支援** — 使用 `ctexart` 文件類別，完整支援中文排版與字型
+- **圖片貼上插入** — 直接 `Ctrl+V` 貼上剪貼簿圖片，可選擇置中、文繞圖靠左或靠右排版
+- **缺圖提示** — 編譯前自動偵測 `\includegraphics` 引用的缺少圖片，彈窗提示補充上傳
+- **中文支援** — 支援 `ctexart` 文件類別及 `article + xeCJK` 組合，完整支援中文排版與字型
+- **匯出下載** — 儲存 `.tex`（含圖片時自動打包 `.zip`）、匯出 PDF，檔名自動套用文件標題
+- **專案開啟** — 同時選取 `.tex` + 圖片檔一次性上傳，自動還原圖片參照
 - **錯誤訊息顯示** — 編譯失敗時顯示 XeTeX 完整日誌，方便除錯
-- **檔案操作** — 開啟本機 `.tex` 檔案、將原始碼儲存為 `.tex` 檔案
+- **使用說明** — 內建操作說明彈窗，快速上手
 
 ## 螢幕截圖
 
@@ -44,6 +47,7 @@
 | `graphicx` | 插入圖片（`\includegraphics`） |
 | `wrapfig` | 文繞圖排版 |
 | `geometry` | 自訂頁面邊距 |
+| `setspace` | 行距調整（`\setstretch`、`\onehalfspacing` 等） |
 | `hyperref` | 超連結與書籤 |
 
 ### 必要字型
@@ -64,12 +68,12 @@
 
 1. 開啟「MiKTeX Console」→ 切換至「Packages」頁籤
 2. 搜尋並安裝下列套件：
-   `ctex`、`xecjk`、`amsmath`、`amscls`、`pgf`、`pgfplots`、`tikz-3dplot`、`wrapfig`、`geometry`、`hyperref`
+   `ctex`、`xecjk`、`amsmath`、`amscls`、`pgf`、`pgfplots`、`tikz-3dplot`、`wrapfig`、`geometry`、`setspace`、`hyperref`
 
 **方法二：命令列（mpm）**
 
 ```bash
-mpm --install ctex xecjk amsmath amscls pgf tikz-3dplot wrapfig geometry hyperref
+mpm --install ctex xecjk amsmath amscls pgf tikz-3dplot wrapfig geometry setspace hyperref
 ```
 
 > **提示：** MiKTeX 預設啟用「按需安裝（on-the-fly install）」，第一次編譯時若缺少套件，會自動彈出安裝提示。建議先手動安裝以避免首次編譯超時。
@@ -81,7 +85,7 @@ mpm --install ctex xecjk amsmath amscls pgf tikz-3dplot wrapfig geometry hyperre
 **安裝個別套件：**
 
 ```bash
-sudo tlmgr install ctex xecjk amsmath amscls pgf tikz-3dplot wrapfig geometry hyperref
+sudo tlmgr install ctex xecjk amsmath amscls pgf tikz-3dplot wrapfig geometry setspace hyperref
 ```
 
 **或一次安裝完整中文套件集：**
@@ -150,10 +154,12 @@ PORT=8080 node server.js
 | 操作 | 方式 |
 |------|------|
 | 編譯 | `Ctrl+Enter`（macOS：`Cmd+Enter`） |
-| 開啟檔案 | 工具列「開啟」按鈕，選取 `.tex` 檔 |
-| 儲存檔案 | 工具列「儲存」按鈕 |
-| 插入圖片 | 在編輯器中 `Ctrl+V` 貼上剪貼簿圖片 |
-| 反向搜尋 | 點擊 PDF 預覽中的文字 |
+| 開啟檔案 | 工具列「開啟檔案」按鈕，選取 `.tex` 或同時選取 `.tex` + 圖片（多選） |
+| 儲存檔案 | 工具列「儲存 .tex」按鈕；含圖片時自動下載 `.zip` |
+| 匯出 PDF | 工具列「匯出 PDF」按鈕，檔名依文件標題命名 |
+| 插入圖片 | 在編輯器中 `Ctrl+V` 貼上剪貼簿圖片，選擇排版後插入 |
+| 反向搜尋 | 點擊 PDF 預覽中的文字，編輯器自動跳至對應行 |
+| 使用說明 | 工具列「使用說明」按鈕 |
 
 ## 專案結構
 
@@ -173,15 +179,17 @@ EzLatex/
 
 | 方法 | 路徑 | 說明 |
 |------|------|------|
-| `POST` | `/compile` | 接收 `{ code }` JSON，編譯 LaTeX 並回傳 PDF 路徑或錯誤日誌 |
+| `POST` | `/compile` | 接收 `{ code }` JSON；自動檢查缺少圖片，編譯並回傳 PDF 路徑或錯誤日誌 |
 | `GET` | `/pdf` | 取得最新編譯的 PDF 檔案 |
 | `GET` | `/synctex` | 依 `?page=&x=&y=` 查詢 PDF 座標對應的原始碼行號 |
-| `POST` | `/upload` | 上傳圖片（multipart），回傳儲存的檔名 |
+| `POST` | `/upload` | 上傳單張圖片（multipart），回傳時間戳記命名的檔名 |
+| `POST` | `/upload-project` | 上傳 `.tex` + 圖片組合（最多 50 個檔案），回傳 tex 內容與缺圖清單 |
+| `POST` | `/download-zip` | 接收 `{ code }` JSON，打包 `.tex` 與引用圖片回傳 `.zip` |
 
 ## 技術棧
 
 - **前端：** HTML5、CSS3、Vanilla JavaScript、CodeMirror 5、PDF.js
-- **後端：** Node.js、Express 5、Multer、CORS
+- **後端：** Node.js、Express 5、Multer、CORS、archiver
 - **LaTeX 引擎：** XeTeX（xelatex）、SyncTeX
 
 ## 授權

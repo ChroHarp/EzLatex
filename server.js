@@ -4,6 +4,7 @@ const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
 const { spawn, exec } = require('child_process');
+const archiver = require('archiver');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -62,6 +63,20 @@ app.post('/compile', (req, res) => {
         return res.status(400).json({ error: 'No LaTeX code provided.' });
     }
 
+    // Check for missing images before compiling
+    const imgRegex = /\\includegraphics(?:\[.*?\])?\{([^}]+)\}/g;
+    const missingImages = [];
+    let imgMatch;
+    while ((imgMatch = imgRegex.exec(code)) !== null) {
+        const imgName = imgMatch[1];
+        if (!fs.existsSync(path.join(tempDir, path.basename(imgName)))) {
+            missingImages.push(imgName);
+        }
+    }
+    if (missingImages.length > 0) {
+        return res.json({ success: false, missingImages });
+    }
+
     const texFilePath = path.join(tempDir, 'main.tex');
     const pdfFilePath = path.join(tempDir, 'main.pdf');
     const logFilePath = path.join(tempDir, 'main.log');
@@ -116,7 +131,7 @@ app.get('/pdf', (req, res) => {
     const pdfFilePath = path.join(tempDir, 'main.pdf');
     if (fs.existsSync(pdfFilePath)) {
         res.setHeader('Content-Type', 'application/pdf');
-        res.sendFile(pdfFilePath);
+        res.send(fs.readFileSync(pdfFilePath));
     } else {
         res.status(404).send('PDF not found. Please compile first.');
     }
@@ -159,6 +174,88 @@ app.get('/synctex', (req, res) => {
             res.json({ success: false, error: 'No line match found', raw: stdout });
         }
     });
+});
+
+// POST endpoint to download .tex + images as ZIP
+app.post('/download-zip', (req, res) => {
+    const { code } = req.body;
+    if (!code) {
+        return res.status(400).json({ error: 'No code provided.' });
+    }
+
+    // Parse all \includegraphics references
+    const regex = /\\includegraphics(?:\[.*?\])?\{([^}]+)\}/g;
+    const imageRefs = [];
+    let match;
+    while ((match = regex.exec(code)) !== null) {
+        imageRefs.push(match[1]);
+    }
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', 'attachment; filename="document.zip"');
+
+    const archive = archiver('zip', { zlib: { level: 6 } });
+    archive.on('error', (err) => {
+        res.status(500).json({ error: 'ZIP creation failed.' });
+    });
+    archive.pipe(res);
+
+    // Add .tex content
+    archive.append(code, { name: 'document.tex' });
+
+    // Add referenced images from tempDir
+    const missing = [];
+    for (const img of imageRefs) {
+        const imgPath = path.join(tempDir, path.basename(img));
+        if (fs.existsSync(imgPath)) {
+            archive.file(imgPath, { name: path.basename(img) });
+        } else {
+            missing.push(img);
+        }
+    }
+    if (missing.length > 0) {
+        archive.append(missing.join('\n'), { name: '_missing_images.txt' });
+    }
+
+    archive.finalize();
+});
+
+// POST endpoint to upload .tex + companion images
+const projectUpload = multer({
+    storage: multer.diskStorage({
+        destination: (req, file, cb) => cb(null, tempDir),
+        filename: (req, file, cb) => cb(null, path.basename(file.originalname))
+    }),
+    limits: { fileSize: 10 * 1024 * 1024 }
+});
+
+app.post('/upload-project', projectUpload.array('files', 50), (req, res) => {
+    if (!req.files || req.files.length === 0) {
+        return res.status(400).json({ error: 'No files provided.' });
+    }
+
+    const texFile = req.files.find(f => f.originalname.endsWith('.tex'));
+    if (!texFile) {
+        return res.status(400).json({ error: 'No .tex file found in upload.' });
+    }
+
+    const texContent = fs.readFileSync(texFile.path, 'utf8');
+    const imageFiles = req.files.filter(f => !f.originalname.endsWith('.tex'));
+
+    // Check which referenced images were included in the upload
+    const regex = /\\includegraphics(?:\[.*?\])?\{([^}]+)\}/g;
+    const referencedImages = [];
+    let match;
+    while ((match = regex.exec(texContent)) !== null) {
+        referencedImages.push(match[1]);
+    }
+
+    const uploadedImages = imageFiles.map(f => f.originalname);
+    const missingImages = referencedImages.filter(ref =>
+        !uploadedImages.includes(ref) && !fs.existsSync(path.join(tempDir, ref))
+    );
+
+    res.json({ texContent, uploadedImages, missingImages });
 });
 
 app.listen(PORT, () => {
