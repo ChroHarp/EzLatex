@@ -44,6 +44,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     editor.setValue(defaultCode);
 
+    // 從 LaTeX 內容中提取文件標題（用於匯出檔名）
+    const getDocTitle = (content) => {
+        // 嘗試 \title{...}
+        let m = content.match(/\\title\{([^}]+)\}/);
+        if (m) return m[1].trim();
+        // 嘗試第一個 \section 或 \section*
+        m = content.match(/\\section\*?\{([^}]+)\}/);
+        if (m) return m[1].trim();
+        return 'document';
+    };
+
+    // 清理檔名：移除不安全字元
+    const sanitizeFilename = (name) => {
+        return name.replace(/[\\/:*?"<>|]/g, '_').substring(0, 80);
+    };
+
     // DOM 元素參考
     const compileBtn = document.getElementById('compileBtn');
     const loadingOverlay = document.getElementById('loadingOverlay');
@@ -212,11 +228,12 @@ document.addEventListener('DOMContentLoaded', () => {
             alert('PDF 尚未產生，請先編譯');
             return;
         }
+        const title = sanitizeFilename(getDocTitle(editor.getValue()));
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'document.pdf';
+        a.download = `${title}.pdf`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -260,6 +277,46 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // 缺圖上傳 Modal 元素
+    const missingImgModal = document.getElementById('missingImgModal');
+    const missingImgList = document.getElementById('missingImgList');
+    const missingImgInput = document.getElementById('missingImgInput');
+    const missingImgCancelBtn = document.getElementById('missingImgCancelBtn');
+    const missingImgUploadBtn = document.getElementById('missingImgUploadBtn');
+
+    missingImgCancelBtn.addEventListener('click', () => {
+        missingImgModal.classList.add('hidden');
+        loadingOverlay.classList.add('hidden');
+        compileBtn.disabled = false;
+    });
+
+    missingImgUploadBtn.addEventListener('click', async () => {
+        const files = missingImgInput.files;
+        if (!files || files.length === 0) {
+            alert('請先選擇圖片檔案');
+            return;
+        }
+
+        const formData = new FormData();
+        for (const file of files) {
+            formData.append('files', file);
+        }
+        // 加入一個空的 .tex 佔位，讓 /upload-project 不報錯
+        const dummyTex = new Blob([''], { type: 'text/plain' });
+        formData.append('files', new File([dummyTex], 'placeholder.tex'));
+
+        try {
+            await fetch('/upload-project', { method: 'POST', body: formData });
+            missingImgModal.classList.add('hidden');
+            missingImgInput.value = '';
+            // 重新編譯
+            await compileLatex();
+        } catch (err) {
+            console.error('圖片上傳失敗:', err);
+            alert('圖片上傳失敗！');
+        }
+    });
+
     // 編譯功能
     const compileLatex = async () => {
         const code = editor.getValue();
@@ -281,6 +338,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (result.success) {
                 // 成功，透過 PDF.js 渲染 PDF
                 await renderPdf(result.pdfUrl);
+            } else if (result.missingImages && result.missingImages.length > 0) {
+                // 顯示缺圖上傳 Modal
+                missingImgList.innerHTML = result.missingImages
+                    .map(img => `<li>${img}</li>`).join('');
+                missingImgInput.value = '';
+                missingImgModal.classList.remove('hidden');
+                return; // 不隱藏 loading，等待使用者上傳
             } else {
                 logOutput.textContent = result.log || result.output || '發生未知錯誤';
                 logContainer.classList.remove('hidden');
@@ -302,34 +366,109 @@ document.addEventListener('DOMContentLoaded', () => {
         "Cmd-Enter": function(cm) { compileLatex(); }
     });
 
+    // 使用說明 Modal
+    const helpBtn = document.getElementById('helpBtn');
+    const helpModal = document.getElementById('helpModal');
+    const helpCloseBtn = document.getElementById('helpCloseBtn');
+    helpBtn.addEventListener('click', () => helpModal.classList.remove('hidden'));
+    helpCloseBtn.addEventListener('click', () => helpModal.classList.add('hidden'));
+    helpModal.addEventListener('click', (e) => {
+        if (e.target === helpModal) helpModal.classList.add('hidden');
+    });
+
     // 本地檔案存取功能
     openBtn.addEventListener('click', () => fileInput.click());
 
-    fileInput.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
+    fileInput.addEventListener('change', async (e) => {
+        const files = Array.from(e.target.files);
+        if (!files.length) return;
 
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            editor.setValue(event.target.result);
-        };
-        reader.readAsText(file);
-        
+        const texFile = files.find(f => f.name.endsWith('.tex'));
+        const imageFiles = files.filter(f => !f.name.endsWith('.tex'));
+
+        if (!texFile) {
+            alert('請選擇至少一個 .tex 檔案');
+            fileInput.value = '';
+            return;
+        }
+
+        if (imageFiles.length === 0) {
+            // No images — just load .tex locally (no server needed)
+            const reader = new FileReader();
+            reader.onload = (event) => editor.setValue(event.target.result);
+            reader.readAsText(texFile);
+        } else {
+            // Upload .tex + images to server so compilation can find them
+            const formData = new FormData();
+            for (const file of files) {
+                formData.append('files', file);
+            }
+
+            try {
+                const res = await fetch('/upload-project', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+
+                if (data.texContent) {
+                    editor.setValue(data.texContent);
+                }
+                if (data.missingImages && data.missingImages.length > 0) {
+                    alert('以下圖片在上傳中未找到：\n' + data.missingImages.join('\n'));
+                }
+            } catch (err) {
+                console.error('上傳專案失敗:', err);
+                alert('上傳失敗！');
+            }
+        }
+
         // 重置 input，允許重複選取相同檔案
         fileInput.value = '';
     });
 
-    saveBtn.addEventListener('click', () => {
+    saveBtn.addEventListener('click', async () => {
         const content = editor.getValue();
-        const blob = new Blob([content], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'document.tex';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        const title = sanitizeFilename(getDocTitle(content));
+
+        // Check if document references any images
+        const imageRegex = /\\includegraphics(?:\[.*?\])?\{([^}]+)\}/g;
+        const hasImages = imageRegex.test(content);
+
+        if (hasImages) {
+            // Download as ZIP via server (includes .tex + images)
+            try {
+                const res = await fetch('/download-zip', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: content })
+                });
+                if (!res.ok) throw new Error('ZIP download failed');
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${title}.zip`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } catch (err) {
+                console.error('ZIP 下載失敗:', err);
+                alert('ZIP 下載失敗！');
+            }
+        } else {
+            // No images — download plain .tex
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${title}.tex`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
     });
 
     // 處理剪貼簿圖片貼上

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LaTeX 線上編輯器</title>
+    <title>EzLaTeX 編輯器</title>
     <link rel="stylesheet" href="style.css">
     
     <!-- CodeMirror for a better editing experience -->
@@ -20,11 +20,12 @@
 <body>
     <header>
         <div class="header-left">
-            <h1>LaTeX 編輯器</h1>
+            <h1>EzLaTeX 編輯器</h1>
             <span class="badge">支援中文、TikZ、數學公式</span>
         </div>
         <div class="header-right">
-            <input type="file" id="fileInput" accept=".tex" class="hidden">
+            <input type="file" id="fileInput" accept=".tex,.png,.jpg,.jpeg,.gif,.bmp,.svg,.pdf,.eps" multiple class="hidden">
+            <button id="helpBtn" class="secondary-btn">使用說明</button>
             <button id="openBtn" class="secondary-btn">開啟檔案</button>
             <button id="saveBtn" class="secondary-btn">儲存 .tex</button>
             <button id="savePdfBtn" class="secondary-btn">匯出 PDF</button>
@@ -86,6 +87,50 @@
         </div>
     </main>
 
+    <!-- 使用說明彈窗 -->
+    <div id="helpModal" class="modal hidden">
+        <div class="modal-content help-modal-content">
+            <h3>使用說明</h3>
+            <div class="help-sections">
+                <div class="help-section">
+                    <h4>基本操作</h4>
+                    <ul>
+                        <li><kbd>Ctrl+Enter</kbd> 編譯並預覽 PDF</li>
+                        <li><kbd>Ctrl+V</kbd> 在編輯區直接貼上截圖，自動上傳圖片</li>
+                        <li>點擊右側 PDF 文字，左側編輯器自動跳至對應行（反向搜尋）</li>
+                    </ul>
+                </div>
+                <div class="help-section">
+                    <h4>檔案管理</h4>
+                    <ul>
+                        <li><strong>開啟檔案</strong>：支援 .tex 單檔，或同時選取 .tex + 圖片檔（多選）</li>
+                        <li><strong>儲存 .tex</strong>：若文件含圖片，自動打包成 .zip；無圖片則下載 .tex</li>
+                        <li><strong>匯出 PDF</strong>：下載編譯後的 PDF，檔名自動套用文件標題</li>
+                        <li>所有匯出檔名依據文件中 <code>\title{}</code> 或第一個 <code>\section{}</code> 命名</li>
+                    </ul>
+                </div>
+                <div class="help-section">
+                    <h4>圖片處理</h4>
+                    <ul>
+                        <li>貼上圖片後可選擇：置中、文繞圖靠左、文繞圖靠右</li>
+                        <li>編譯時若偵測到缺少圖片，會彈出視窗提示補充上傳</li>
+                        <li>下載 .zip 後解壓縮，再用「開啟檔案」同時選取 .tex 和圖片即可還原</li>
+                    </ul>
+                </div>
+                <div class="help-section">
+                    <h4>字型設定（中文）</h4>
+                    <ul>
+                        <li>使用 <code>\setCJKmainfont{Noto Sans CJK TC}</code> 設定中文字型</li>
+                        <li>推薦文件類別：<code>ctexart</code>（中文）或 <code>article</code> + <code>xeCJK</code></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button id="helpCloseBtn" class="primary-btn">了解了</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 圖片設定彈窗 -->
     <div id="imageModal" class="modal hidden">
         <div class="modal-content">
@@ -105,6 +150,23 @@
             <div class="modal-actions">
                 <button id="imgCancelBtn" class="cancel-btn">取消</button>
                 <button id="imgConfirmBtn" class="primary-btn">確認插入</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 缺少圖片上傳彈窗 -->
+    <div id="missingImgModal" class="modal hidden">
+        <div class="modal-content">
+            <h3>編譯需要以下圖片</h3>
+            <p class="modal-desc">文件中參考了尚未上傳的圖片，請選擇對應的圖片檔案：</p>
+            <ul id="missingImgList" class="missing-list"></ul>
+            <div class="form-group">
+                <label>選擇圖片檔案</label>
+                <input type="file" id="missingImgInput" accept=".png,.jpg,.jpeg,.gif,.bmp,.svg,.pdf,.eps" multiple>
+            </div>
+            <div class="modal-actions">
+                <button id="missingImgCancelBtn" class="cancel-btn">取消</button>
+                <button id="missingImgUploadBtn" class="primary-btn">上傳並編譯</button>
             </div>
         </div>
     </div>
