@@ -66,8 +66,27 @@ app.post('/compile', (req, res) => {
     const pdfFilePath = path.join(tempDir, 'main.pdf');
     const logFilePath = path.join(tempDir, 'main.log');
 
-    // Write the raw latex code to main.tex
-    fs.writeFileSync(texFilePath, code, 'utf8');
+    // Preprocess: replace \includegraphics referencing missing files with a placeholder
+    const processedCode = code.replace(
+        /\\includegraphics\s*(\[[^\]]*\])?\s*\{([^}]+)\}/g,
+        (match, options, filename) => {
+            const imgPath = path.join(tempDir, filename);
+            if (!fs.existsSync(imgPath)) {
+                // Extract width from options if available (e.g. width=0.5\textwidth)
+                let widthExpr = '0.8\\textwidth';
+                if (options) {
+                    const wMatch = options.match(/width\s*=\s*([^,\]]+)/);
+                    if (wMatch) widthExpr = wMatch[1].trim();
+                }
+                // Render a visible placeholder box instead of the missing image
+                return `\\fbox{\\parbox{${widthExpr}}{\\centering\\vspace{1.5cm}{\\small [Image not found: ${filename.replace(/_/g, '\\_')}]}\\vspace{1.5cm}}}`;
+            }
+            return match;
+        }
+    );
+
+    // Write the processed latex code to main.tex
+    fs.writeFileSync(texFilePath, processedCode, 'utf8');
 
     // Compile using xelatex for better support of Chinese (ctexart) and modern fonts
     const texProcess = spawn(XELATEX, ['-synctex=1', '-interaction=nonstopmode', 'main.tex'], {
